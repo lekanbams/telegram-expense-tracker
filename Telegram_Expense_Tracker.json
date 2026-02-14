@@ -1,0 +1,812 @@
+{
+  "name": "Telegram Expense Tracker with Automated Financial Reporting",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "a57a8834-b5df-4455-a680-c36a91130930",
+      "name": "Telegram Expense Input",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1264,
+        816
+      ],
+      "webhookId": "GENERATED_ON_IMPORT",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAMAPI_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are an expense tracking assistant that helps users log their expenses.\n\nYour task is to:\n1. Extract expense information from user messages (amount, category, description)\n2. Use the Google Sheets Tool to append the expense to the spreadsheet\n3. Confirm the expense has been logged\n\n**Expense Categories:** Food, Transport, Shopping, Entertainment, Bills, Healthcare, Other\n\n**Currency:** All amounts are in Nigerian Naira (NGN), denoted with '\u20a6' in front of the amount (e.g., \u20a65,000).\n\n**When logging expenses:**\n- Use the spreadsheet ID from the workflow configuration\n- Append to the sheet named \"Expenses\"\n- Include: Date (use the readable format - {{ $json.readable_date }}), Amount (numeric value only, no currency symbol), Category, Description\n- When confirming to the user, display amounts with the '\u20a6' prefix (e.g., \u20a65,000)\n\n**OUTPUT FORMAT:**\nYou must output a structured JSON object with the following format:\n\nFor a single expense:\n{\n  \"date\": \"Monday, January 5, 2026\",\n  \"amount\": 5000,\n  \"category\": \"Food\",\n  \"description\": \"Groceries\"\n}\n\nFor multiple expenses in one message:\n{\n  \"expenses\": [\n    {\n      \"date\": \"Monday, January 5, 2026\",\n      \"amount\": 5000,\n      \"category\": \"Food\",\n      \"description\": \"Food at restaurant\"\n    },\n    {\n      \"date\": \"Monday, January 5, 2026\",\n      \"amount\": 3500,\n      \"category\": \"Shopping\",\n      \"description\": \"Clothes\"\n    }\n  ],\n  \"total_amount\": 8500,\n  \"expense_count\": 2\n}\n\n**IMPORTANT:**\n- All amounts are in Nigerian Naira (NGN)\n- Store amounts as numeric values only (no '\u20a6' prefix in the JSON output)\n- When confirming to the user, format amounts with '\u20a6' prefix and thousands separator (e.g., \"\u20a65,000\")\n- Always use the date format: \"DayOfWeek, Month Day, Year\" (e.g., \"Monday, January 5, 2026\")\n- Category must be one of: Food, Transport, Shopping, Entertainment, Bills, Healthcare, Other\n- Description should be concise (3-5 words max)\n- If the user doesn't specify a category, intelligently assign one based on the description\n- If multiple expenses are in one message, extract all of them\n\n**EXAMPLE INTERACTIONS:**\n\nUser: \"I spent 5000 on food today\"\nOutput JSON:\n{\n  \"date\": \"Monday, January 5, 2026\",\n  \"amount\": 5000,\n  \"category\": \"Food\",\n  \"description\": \"Food purchase\"\n}\nConfirmation: \"\u2705 Logged: \u20a65,000 for Food - Food purchase on Monday, January 5, 2026\"\n\nUser: \"I spent 5000 on food, 3500 on clothes, and 7000 on transport\"\nOutput JSON:\n{\n  \"expenses\": [\n    {\n      \"date\": \"Monday, January 5, 2026\",\n      \"amount\": 5000,\n      \"category\": \"Food\",\n      \"description\": \"Food purchase\"\n    },\n    {\n      \"date\": \"Monday, January 5, 2026\",\n      \"amount\": 3500,\n      \"category\": \"Shopping\",\n      \"description\": \"Clothes\"\n    },\n    {\n      \"date\": \"Monday, January 5, 2026\",\n      \"amount\": 7000,\n      \"category\": \"Transport\",\n      \"description\": \"Transport expense\"\n    }\n  ],\n  \"total_amount\": 15500,\n  \"expense_count\": 3\n}\nConfirmation: \"\u2705 Logged 3 expenses totaling \u20a615,500:\n- \u20a65,000 - Food\n- \u20a63,500 - Shopping\n- \u20a67,000 - Transport\"\n\nCRITICAL: Today's date is {{ $now.format('yyyy-MM-dd') }}. \nWhen processing expenses, preserve the EXACT date provided in the input. \nDO NOT modify years or assume dates are from 2025.\n\nBegin by extracting the expense information and logging it to Google Sheets."
+        }
+      },
+      "id": "ee7212b1-0789-44f0-b56d-327c299d13c5",
+      "name": "Expense Parser Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        112,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Date Parser').item.json.message_id }}"
+      },
+      "id": "e952daf1-1fcd-4ad7-aa93-c3f9367cb959",
+      "name": "Conversation Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        112,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEETS_DOCUMENT_ID",
+          "mode": "url",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_DOCUMENT_ID/edit#gid=0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "EXPENSE LOGGER",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xqRZuP5okUUKFmeY5v79SZsv5iQfMLKSkhtq7IZ_bmA/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "DESCRIPTION": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('DESCRIPTION', ``, 'string') }}",
+            "CATEGORY": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('CATEGORY', ``, 'string') }}",
+            "AMOUNT": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('AMOUNT__using_to_match_', ``, 'string') }}",
+            "DATE": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('DATE', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "DATE"
+          ],
+          "schema": [
+            {
+              "id": "DATE",
+              "displayName": "DATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "AMOUNT",
+              "displayName": "AMOUNT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "CATEGORY",
+              "displayName": "CATEGORY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "DESCRIPTION",
+              "displayName": "DESCRIPTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "95c4d857-b50c-4231-93a9-b4d6682eceba",
+      "name": "Google Sheets Tool",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        288,
+        768
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLESHEETSOAUTH2API_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"expenses\": {\n      \"type\": \"array\",\n      \"description\": \"Array of expenses extracted from the message\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"date\": {\n            \"type\": \"string\",\n            \"description\": \"The date of the expense in readable format (e.g., Monday, January 5, 2026)\"\n          },\n          \"amount\": {\n            \"type\": \"number\",\n            \"description\": \"The expense amount as a number (no currency symbol, just the numeric value)\"\n          },\n          \"category\": {\n            \"type\": \"string\",\n            \"enum\": [\"Food\", \"Transport\", \"Shopping\", \"Entertainment\", \"Bills\", \"Healthcare\", \"Other\"],\n            \"description\": \"The expense category\"\n          },\n          \"description\": {\n            \"type\": \"string\",\n            \"description\": \"Brief description of the expense (3-5 words max)\"\n          }\n        },\n        \"required\": [\"date\", \"amount\", \"category\", \"description\"],\n        \"additionalProperties\": false\n      },\n      \"minItems\": 1\n    },\n    \"total_amount\": {\n      \"type\": \"number\",\n      \"description\": \"Sum of all expense amounts\"\n    },\n    \"expense_count\": {\n      \"type\": \"integer\",\n      \"description\": \"Number of expenses extracted\",\n      \"minimum\": 1\n    }\n  },\n  \"required\": [\"expenses\", \"total_amount\", \"expense_count\"],\n  \"additionalProperties\": false\n}"
+      },
+      "id": "0c4e201b-5a35-42b1-a513-b5c5ae61ea6b",
+      "name": "Expense Data Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        480,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a Personal Financial Advisor AI creating expense reports for the user. Your tone should be friendly, encouraging, and conversational while remaining professional and insightful.\n\n**YOUR AVAILABLE TOOLS:**\n\n1. **Get row(s) in sheet in Google Sheets** - Fetch expense data from the spreadsheet\n2. **Code Tool** - Perform calculations, data aggregation, and analysis\n3. **Anthropic Chat Model for Reports** - Your reasoning and report generation capability\n\n**WORKFLOW INSTRUCTIONS:**\n\n## Step 1: Fetch Expense Data\nFirst, use the \"Get row(s) in sheet in Google Sheets\" tool to retrieve all expense records.\n- Fetch all rows from the expense tracking sheet\n- The data includes: DATE, AMOUNT, CATEGORY, DESCRIPTION\n\n## Step 2: Process and Calculate\nUse the \"Code Tool\" to perform the following calculations on the fetched data:\n```javascript\n// Calculate summary metrics\nconst expenses = /* data from Google Sheets */;\n\nconst summary = {\n  totalExpenses: 0,\n  expenseCount: expenses.length,\n  byCategory: {},\n  topExpenses: []\n};\n\n// Aggregate by category\nexpenses.forEach(item => {\n  const category = item.CATEGORY;\n  const amount = parseFloat(item.AMOUNT);\n  \n  summary.totalExpenses += amount;\n  \n  if (!summary.byCategory[category]) {\n    summary.byCategory[category] = {\n      total: 0,\n      count: 0,\n      transactions: []\n    };\n  }\n  \n  summary.byCategory[category].total += amount;\n  summary.byCategory[category].count += 1;\n  summary.byCategory[category].transactions.push({\n    amount: amount,\n    description: item.DESCRIPTION\n  });\n});\n\n// Calculate percentages and averages\nObject.keys(summary.byCategory).forEach(cat => {\n  summary.byCategory[cat].percentage = \n    ((summary.byCategory[cat].total / summary.totalExpenses) * 100).toFixed(1);\n  summary.byCategory[cat].average = \n    (summary.byCategory[cat].total / summary.byCategory[cat].count).toFixed(2);\n});\n\n// Get top 5 expenses\nsummary.topExpenses = expenses\n  .sort((a, b) => parseFloat(b.AMOUNT) - parseFloat(a.AMOUNT))\n  .slice(0, 5);\n\nsummary.averageTransaction = (summary.totalExpenses / summary.expenseCount).toFixed(2);\n\nreturn summary;\n```\n\n## Step 3: Generate Financial Report\nBased on the processed data, output ONLY the formatted report. Do not include any preambles, explanations, or meta-commentary about what you're doing. Start directly with the report title.\n\n**CURRENCY NOTE:** All amounts are in Nigerian Naira (NGN), formatted with '\u20a6' prefix (e.g., \u20a65,000).\n\n**REQUIRED OUTPUT FORMAT:**\n\n# \ud83d\udcca YOUR EXPENSE REPORT\n\n**Report Generated:** [Current Month and Year]  \n**Period:** Your Recent Spending Activity\n\n---\n\n## \ud83d\udcb0 Your Spending Summary\n\n- **You spent:** \u20a6[totalExpenses]\n- **Transactions:** [expenseCount] purchases\n- **Average per transaction:** \u20a6[averageTransaction]\n\n[Write 1-2 conversational sentences about their spending pattern, using \"you\" language. Be encouraging if spending is controlled, or gently cautionary if concerning patterns emerge]\n\n---\n\n## \ud83d\udcca Where Your Money Went\n\n| Category | You Spent | % of Total | Times |\n|----------|-----------|------------|-------|\n| [Data]   | [Data]    | [Data]     | [Data]|\n\n**What this means:** [2-3 friendly sentences explaining their spending distribution. Use \"you\" language and make it relatable, like \"Food took the biggest share of your budget this period\" or \"You're keeping entertainment spending under control\"]\n\n---\n\n## \ud83d\udcb8 Your Biggest Expenses\n\n1. **[Category]** - \u20a6[Amount] - [Description]\n2. **[Category]** - \u20a6[Amount] - [Description]\n3. **[Category]** - \u20a6[Amount] - [Description]\n4. **[Category]** - \u20a6[Amount] - [Description]\n5. **[Category]** - \u20a6[Amount] - [Description]\n\n---\n\n## \ud83d\udd0d What We Noticed\n\n**Your Spending Style:** [1-2 friendly sentences about how they spend - e.g., \"You tend to make fewer but larger purchases\" or \"Your spending is nicely spread across different categories\"]\n\n**Trends to Watch:** [1-2 sentences highlighting any patterns, using encouraging or constructive language]\n\n**Good Habits:** [1 sentence highlighting something positive about their spending, if applicable, or a neutral observation]\n\n---\n\n## \ud83d\udca1 Our Suggestions for You\n\n1. **[Friendly Title]:** [One encouraging sentence with practical advice tailored to their situation]\n2. **[Friendly Title]:** [One supportive sentence with actionable guidance]\n3. **[Friendly Title]:** [One constructive sentence with helpful recommendations]\n\n---\n\n## \ud83d\udcc8 Your Numbers at a Glance\n\n- \ud83d\udcb5 **Total Spent**: \u20a6[amount]\n- \ud83d\uded2 **Times You Shopped**: [count]\n- \ud83d\udcca **Average Spend**: \u20a6[avg]\n- \ud83c\udfc6 **Top Category**: [category] ([X]%)\n- \ud83d\udcb8 **Biggest Purchase**: \u20a6[amount]\n\n---\n\n**TONE GUIDELINES:**\n\n**Personalization:**\n- Always use \"you/your\" instead of \"the user\" or impersonal language\n- Write as if speaking directly to a friend who trusts your financial advice\n- Be conversational but not overly casual\n- Show you care about their financial wellbeing\n\n**Emotional Intelligence:**\n- If spending is high: Be constructive, not judgmental (e.g., \"This was a high-spending period\" not \"You overspent\")\n- If spending is controlled: Be encouraging (e.g., \"You're managing your budget well!\")\n- If there are concerning patterns: Be gentle and helpful (e.g., \"It might be worth taking a closer look at...\" not \"You need to stop...\")\n- Always end recommendations on a positive, empowering note\n\n**Language Style:**\n- Use contractions (you're, you've, it's) to sound natural\n- Use phrases like \"We noticed,\" \"Let's look at,\" \"You might consider\"\n- Avoid financial jargon - use simple, everyday language\n- Use emojis sparingly to add warmth without being unprofessional\n\n**CRITICAL OUTPUT RULES:**\n\n\ud83d\udea8 **MAXIMUM CHARACTER LIMIT: 4096 CHARACTERS** \ud83d\udea8\n\nYour ENTIRE output must not exceed 4096 characters (including spaces, line breaks, and all formatting). This is a hard limit for Telegram message compatibility.\n\n**To stay within the limit:**\n- Keep all text concise and conversational\n- Limit summary to 1-2 friendly sentences\n- Limit category analysis to 2-3 relatable sentences\n- Limit each insight section to 1-2 sentences\n- Keep recommendations to 3 items with one supportive sentence each\n- Use clear, everyday descriptions\n- Prioritize helpful information over verbose explanations\n- If many categories exist, show only top 5-6\n- If many transactions exist, show only top 5\n\n**Formatting Rules:**\n- DO NOT include any preambles like \"Let me perform...\", \"I'll now...\", \"Here's the report...\", \"Let me calculate the summary manually based on the data:...\"\n- DO NOT include \"This message was sent automatically with n8n\" at the end\n- DO NOT explain what you're doing or about to do\n- DO NOT include meta-commentary about calculations or processes\n- START IMMEDIATELY with \"# \ud83d\udcca YOUR EXPENSE REPORT\"\n- OUTPUT ONLY the formatted markdown report exactly as specified above\n- All currency must be formatted as N[amount] with thousands separator (e.g., N5,000 or N15,000)\n- Keep the report warm, personal, and actionable\n\n**EXECUTION STEPS:**\n1. Call Google Sheets tool to fetch all expense data\n2. Call Code Tool to aggregate and calculate metrics\n3. Generate the personalized, friendly report starting directly with the title\n4. Ensure total output is under 4096 characters\n5. Base all insights on actual data while maintaining an encouraging, supportive tone\n\nBegin by fetching the expense data from Google Sheets, then output ONLY the formatted report with no preamble.",
+        "options": {}
+      },
+      "id": "62f8a768-b7aa-4a9e-b249-6da2582eea11",
+      "name": "Report Generator Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -80,
+        1424
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "6494472664",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "5ba71a8d-b9bd-4abe-9e3a-e7db9d12cd19",
+      "name": "Send Report to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        432,
+        1424
+      ],
+      "webhookId": "GENERATED_ON_IMPORT",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAMAPI_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-5-20251101",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        -48,
+        768
+      ],
+      "id": "8cfd2095-17e6-464f-8c97-8070731d55a0",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "YOUR_ANTHROPICAPI_CREDENTIAL_ID",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        -176,
+        1664
+      ],
+      "id": "847cbaa9-db40-4b46-bdd9-1c4f0c7ca362",
+      "name": "Anthropic Chat Model for Reports",
+      "credentials": {
+        "anthropicApi": {
+          "id": "YOUR_ANTHROPICAPI_CREDENTIAL_ID",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "This tool processes expense data and returns calculated metrics.\n\nInput: Array of expense objects with CATEGORY, AMOUNT, DESCRIPTION fields\n\nOutput: Object containing:\n- summary.totalExpenses\n- summary.expenseCount  \n- summary.averageTransaction\n- byCategory (object with totals, counts, percentages, averages per category)\n- topExpenses (array of top 5 expenses)\n\nUse this for all financial calculations."
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -16,
+        1664
+      ],
+      "id": "15d0197f-3306-4617-8fb3-bafc7574937a",
+      "name": "Code Tool"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1xqRZuP5okUUKFmeY5v79SZsv5iQfMLKSkhtq7IZ_bmA",
+          "mode": "list",
+          "cachedResultName": "EXPENSE LOGGER\t\t\t\t\t\t\t\t\t\t\t",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xqRZuP5okUUKFmeY5v79SZsv5iQfMLKSkhtq7IZ_bmA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "EXPENSE LOGGER",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xqRZuP5okUUKFmeY5v79SZsv5iQfMLKSkhtq7IZ_bmA/edit#gid=0"
+        },
+        "combineFilters": "OR",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        176,
+        1664
+      ],
+      "id": "2d95a417-3b07-4682-bb53-82300d101c0a",
+      "name": "Read All Expenses",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLESHEETSOAUTH2API_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the AI-generated report\nconst reportText = $input.first().json.output;\n\n// Telegram formatting conversion\n// Telegram supports: *bold*, _italic_, `code`, but NOT markdown headers or tables\n\nfunction formatForTelegram(text) {\n  let formatted = text;\n  \n  // Remove markdown headers and replace with bold text + line breaks\n  formatted = formatted.replace(/^#{1,6}\\s+(.+)$/gm, '*$1*\\n');\n  \n  // Convert bold markdown (**text**) to Telegram format (*text*)\n  formatted = formatted.replace(/\\*\\*(.+?)\\*\\*/g, '*$1*');\n  \n  // Keep emojis as-is (Telegram supports them)\n  \n  // Convert tables to formatted lists\n  formatted = formatted.replace(/\\|(.+)\\|/g, (match, content) => {\n    // Remove table formatting and create readable lines\n    const cells = content.split('|').map(c => c.trim()).filter(c => c);\n    return cells.join(' \u2022 ');\n  });\n  \n  // Remove horizontal rules (---)\n  formatted = formatted.replace(/^[\\-]{3,}$/gm, '');\n  \n  // Remove table separator lines\n  formatted = formatted.replace(/^\\|[\\-\\s\\|]+\\|$/gm, '');\n  \n  // Clean up excessive line breaks (max 2 consecutive)\n  formatted = formatted.replace(/\\n{3,}/g, '\\n\\n');\n  \n  // Trim whitespace\n  formatted = formatted.trim();\n  \n  return formatted;\n}\n\nconst telegramReport = formatForTelegram(reportText);\n\nreturn [{\n  json: {\n    message: telegramReport,\n    parse_mode: 'Markdown' // Tell Telegram to parse markdown\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1424
+      ],
+      "id": "eaa9d11e-6b18-4ad3-b5ae-14b205b0e638",
+      "name": "Format Output"
+    },
+    {
+      "parameters": {
+        "content": "## Expense Logger\n**- extracts the expense values and category, and records on the sheet.**\n",
+        "height": 576,
+        "width": 768
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        384
+      ],
+      "id": "916406aa-43b4-49c1-b4e8-4275ece45351",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Report Generator\n**- produces a financial report on expenses and behavioural observations and feedbacks.**",
+        "height": 576,
+        "width": 976,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        1280
+      ],
+      "id": "f657681a-67f3-4236-b24e-f64f3f218e31",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get Telegram webhook data\nconst telegramData = $input.first().json;\n\n// Extract nested message data\nconst message = telegramData.message;\nconst from = message.from;\nconst chat = message.chat;\n\n// Convert timestamp to readable formats\nconst messageDate = new Date(message.date * 1000);\n\nreturn [{\n  json: {\n    // Webhook metadata\n    update_id: telegramData.update_id,\n    message_id: message.message_id,\n    \n    // User information\n    user_id: from.id,\n    first_name: from.first_name,\n    username: from.username,\n    is_bot: from.is_bot,\n    language_code: from.language_code,\n    \n    // Chat information\n    chat_id: chat.id,\n    chat_type: chat.type,\n    \n    // Message content\n    text: message.text,\n    \n    // Original timestamp\n    unix_timestamp: message.date,\n    \n    // Readable date formats\n    full_datetime: messageDate.toLocaleString('en-US'),\n    date_only: messageDate.toLocaleDateString('en-US'),\n    time_only: messageDate.toLocaleTimeString('en-US'),\n    \n    // For reports\n    readable_date: messageDate.toLocaleDateString('en-US', {\n      weekday: 'long',\n      month: 'long',\n      day: 'numeric',\n      year: 'numeric'\n    }),\n    \n    readable_time: messageDate.toLocaleTimeString('en-US', {\n      hour: '2-digit',\n      minute: '2-digit',\n      hour12: true\n    }),\n    \n    // Individual date components\n    year: messageDate.getFullYear(),\n    month: messageDate.toLocaleDateString('en-US', { month: 'long' }),\n    month_number: messageDate.getMonth() + 1,\n    day_of_month: messageDate.getDate(),\n    day_of_week: messageDate.toLocaleDateString('en-US', { weekday: 'long' }),\n    hour: messageDate.getHours(),\n    minute: messageDate.getMinutes(),\n    \n    // Keep original data structure for reference\n    original_message: message\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        1088
+      ],
+      "id": "ee232297-533b-480f-bef3-a210d8ffd683",
+      "name": "Date Parser"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "=Hey there! \ud83d\udc4b \n\nI'm Xpense, your personal finance tracker, here to help you manage your money with zero hassle.\n\n*How it works:*\n1\ufe0f\u20e3 Tell me what you spent\n2\ufe0f\u20e3 I log it instantly\n3\ufe0f\u20e3 Get reports on your spending\n\n*Try it now:*\n\"I spent 5000 on food today\"\n\nAll amounts are in Nigerian Naira (\u20a6). Let's start tracking! \ud83d\udcb0\u2728",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -432,
+        544
+      ],
+      "id": "d1763d65-a376-4b8c-a6ea-501df1eef0e5",
+      "name": "Send Welcome Text",
+      "webhookId": "GENERATED_ON_IMPORT",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAMAPI_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "=Hey there. Okay, I got that. Thanks for being honest. \ud83e\udd1d",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -432,
+        720
+      ],
+      "id": "8bc6d4c0-aca2-4be4-a08b-e1cd521da602",
+      "name": "Send Feedback Text",
+      "webhookId": "GENERATED_ON_IMPORT",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAMAPI_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1ccd119b-2a95-4fa4-9e6c-d0d635c1ed76",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "/start",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -800,
+        624
+      ],
+      "id": "222d930b-73bf-431d-b40f-72503976f45e",
+      "name": "New User ?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        944
+      ],
+      "id": "71cb0012-d891-4451-b127-441e804136b6",
+      "name": "Stop !"
+    },
+    {
+      "parameters": {
+        "content": "## Filters\n**- checks if message is coming from a new user and responds accordingly.**\n\n**- checks if message is actual data from existing user or just the /start command.**\n",
+        "height": 912,
+        "width": 256,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        368
+      ],
+      "id": "d27e9382-9019-4b5e-b31c-85d39f79cdbc",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## Responses\n**- respond to a new user with walm  welcome.**\n\n**- responsd to existing user with confirmation.**\n",
+        "height": 528,
+        "width": 272,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        368
+      ],
+      "id": "326062ec-7a7a-4590-a2fa-388047c09d67",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 22
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1264,
+        1424
+      ],
+      "id": "c6fff66b-8559-42c8-980b-ef7a789ad18d",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Expense Input').item.json.message.chat.id }}",
+        "text": "=Alright, {{ $('Telegram Expense Input').item.json.message.from.first_name }}. Your expense(s) have been recorded. \ud83d\udc4d",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        496
+      ],
+      "id": "bf202441-4203-4fac-9b82-782015f4d842",
+      "name": "Send Confirmation Text",
+      "webhookId": "GENERATED_ON_IMPORT",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAMAPI_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Triggers\n****\n",
+        "height": 928,
+        "width": 256,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1344,
+        688
+      ],
+      "id": "81a7c7d2-6d42-4e5c-acfd-f9a4d13658da",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1ccd119b-2a95-4fa4-9e6c-d0d635c1ed76",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "/start",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -800,
+        1072
+      ],
+      "id": "c3744dd8-8be9-4a68-a3d6-2882d05d8b01",
+      "name": "Existing User ?"
+    }
+  ],
+  "pinData": {
+    "Telegram Expense Input": [
+      {
+        "json": {
+          "update_id": 181285762,
+          "message": {
+            "message_id": 177,
+            "from": {
+              "id": 6494472664,
+              "is_bot": false,
+              "first_name": "Lekan.Web3 \u271e\ufe0e \ufe0e",
+              "username": "lekanweb3",
+              "language_code": "en"
+            },
+            "chat": {
+              "id": 6494472664,
+              "first_name": "Lekan.Web3 \u271e\ufe0e \ufe0e",
+              "username": "lekanweb3",
+              "type": "private"
+            },
+            "date": 1771074154,
+            "text": "Hey I spent 2400 on groceries yesterday"
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Telegram Expense Input": {
+      "main": [
+        [
+          {
+            "node": "New User ?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Existing User ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversation Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Expense Parser Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Expense Parser Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expense Data Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Expense Parser Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report Generator Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Expense Parser Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model for Reports": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Report Generator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Report Generator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Expenses": {
+      "ai_tool": [
+        [
+          {
+            "node": "Report Generator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expense Parser Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output": {
+      "main": [
+        [
+          {
+            "node": "Send Report to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date Parser": {
+      "main": [
+        [
+          {
+            "node": "Expense Parser Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Text": {
+      "main": [
+        []
+      ]
+    },
+    "New User ?": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Feedback Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Report Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Feedback Text": {
+      "main": [
+        []
+      ]
+    },
+    "Existing User ?": {
+      "main": [
+        [
+          {
+            "node": "Stop !",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Date Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "GENERATED_ON_IMPORT",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_N8N_INSTANCE_ID"
+  },
+  "id": "GENERATED_ON_IMPORT",
+  "tags": []
+}
